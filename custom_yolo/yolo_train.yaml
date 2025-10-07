@@ -1,0 +1,79 @@
+# ---- Dataset ----
+data_root: /Users/gvmaka/projects/energesman-waste-detection-and-classification/dataset
+train_images: images/train
+train_labels: labels/train
+val_images: images/val
+val_labels: labels/val
+classes: [orange_bag, tetrapak, champagne_bottle, alcohol_bottle, other_glass_bottle, glass_jar]
+num_classes: 6
+img_size: 640            # model input; runtime will letterbox 1920x1080 -> 640x640
+
+# ---- Model ----
+backbone: mobilenetv3_small   # simple & fast to start; can switch later
+neck: null                    # start single-scale; add fpn later
+strides: [16]                  # later: [8, 16, 32] with FPN
+act: silu                     # activation in heads
+head_channels: 64             # hidden channels in detection head
+
+# ---- Training ----
+epochs: 10
+batch_size: 4                # adjust to fit VRAM
+grad_accum: 4  
+num_workers: 2               # 4x4 => effective batch 16
+optimizer: adamw
+lr: 0.0003
+weight_decay: 0.0005
+ema: true
+amp: true
+warmup_epochs: 1
+scheduler: cosine
+resume: false                  # allow resume from last checkpoint
+save_last: true               # always save last.pt
+
+# ---- Augmentation ----
+hflip: 0.5
+brightness: 0.2               # ±20%
+contrast: 0.2                 # ±20%
+rotation_deg: 8               # small rotations for belt variability
+motion_blur_p: 0.2            # mimic motion at 0.3–0.6 m/s
+hsv_jitter: 0.0               # set >0 if lighting varies (e.g., 0.02)
+random_rescale: [0.8, 1.2]    # light scale jitter
+mosaic: false                 # keep simple first; can enable later
+mixup: false
+
+# ---- Loss & Assignment ----
+box_loss: ciou                # CIoU for box regression
+cls_loss: focal                 # BCE (or focal later)
+obj_loss: bce
+assigner: naive_grid          # MVP: nearest-cell assignment
+pos_cells: 3                 # number of positive cells around center (1 = center only)
+obj_pos_weight: 1.0
+cls_pos_weight: 1.0
+box_weight: 1.0
+
+# ---- Metrics ----
+metrics:
+  ap50: true
+  per_class: true
+  latency_probe: true   # time dataloader, forward, postproc
+  iou_thresholds: [0.5] # later: [0.5,0.55,...,0.95]
+
+# ---- Validation / Metrics ----
+val_conf_thres: 0.05
+val_nms_thres: 0.7
+val_pre_nms_topk: 9600
+val_max_det: 300
+val_log_every: 4000
+
+# ---- Validation / Checkpointing ----
+save_best: true              # enable saving best.pt
+best_metric: ap50            # which metric to monitor (matches your metrics block)
+best_mode: max               # 'max' for AP/precision, 'min' if you monitor loss
+eval_interval: 5              # run quick val every N epochs
+save_dir: runs/motecha_pre-train
+save_best_metric: ap50        # quick AP50 proxy
+seed: 0
+
+# ---- Debug/Visualization ----
+save_batch_preview: false
+preview_dir: runs/motecha_pre-train/preview
