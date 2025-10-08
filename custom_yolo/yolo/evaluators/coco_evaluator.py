@@ -151,10 +151,50 @@ class COCOEvaluator:
         if len(data_dict) == 0:
             return 0.0, 0.0, info
 
-        cocoGt = self.dataloader.dataset.coco
-        _, tmp = tempfile.mkstemp()
-        json.dump(data_dict, open(tmp, "w"))
-        cocoDt = cocoGt.loadRes(tmp)
+        if len(data_dict) > 0:
+            cocoGt = self.dataloader.dataset.coco
+
+            # ensure 'info' exists (pycocotools expects it)
+            if "info" not in cocoGt.dataset:
+                cocoGt.dataset["info"] = {}
+
+        try:
+            gt_img_ids = set(cocoGt.getImgIds())
+            gt_cat_ids = set(cocoGt.getCatIds())
+            res_img_ids = {d["image_id"] for d in data_dict}
+            res_cat_ids = {d["category_id"] for d in data_dict}
+
+            unknown_imgs = sorted(res_img_ids - gt_img_ids)
+            unknown_cats = sorted(res_cat_ids - gt_cat_ids)
+
+            # check bboxes are [x,y,w,h] with positive w,h and finite score
+            bad_boxes = []
+            for d in data_dict[:200000]:  # cap scan for speed
+                bx = d.get("bbox", [])
+                if (len(bx) != 4 or bx[2] <= 0 or bx[3] <= 0 or
+                    not np.isfinite(d.get("score", 0))):
+                    bad_boxes.append(d)
+                    if len(bad_boxes) >= 5:
+                        break
+
+            if unknown_imgs:
+                logger.error(f"[eval] {len(unknown_imgs)} result image_ids not in GT. e.g. {unknown_imgs[:10]}")
+            if unknown_cats:
+                logger.error(f"[eval] Unknown category_ids in results: {unknown_cats} | GT cats: {sorted(gt_cat_ids)}")
+            if bad_boxes:
+                logger.error(f"[eval] Found bad bbox entries (showing up to 5): {bad_boxes[:5]}")
+
+        except Exception as dbg_e:
+            logger.warning(f"[eval] pre-check failed: {repr(dbg_e)}")
+        try:
+            _, tmp = tempfile.mkstemp()
+            json.dump(data_dict, open(tmp, "w"))
+            cocoDt = cocoGt.loadRes(tmp)
+        except Exception as e:
+            logger.error(f"[eval] cocoGt.loadRes failed: {repr(e)}")
+            # show a tiny sample of predictions to aid debugging
+            logger.error(f"[eval] sample preds: {data_dict[:3]}")
+            raise
 
         cocoEval = COCOeval(cocoGt, cocoDt, "bbox")
         cocoEval.evaluate()

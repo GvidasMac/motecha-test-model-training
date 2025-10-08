@@ -19,7 +19,7 @@ def remove_useless_info(coco):
     """
     if isinstance(coco, COCO):
         dataset = coco.dataset
-        dataset.pop("info", None)
+        dataset.setdefault("info", {})
         dataset.pop("licenses", None)
         for img in dataset["images"]:
             img.pop("license", None)
