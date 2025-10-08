@@ -1,4 +1,3 @@
-
 VOC_CLASSES = (
     "orange_bag",
     "tetrapak",
